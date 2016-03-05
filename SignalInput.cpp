@@ -9,26 +9,30 @@
 
 IntervalTimer samplingTimer;
 
-struct goertzel goertzels[SAMPLES_PER_BIT * 2];
+float d0High[GOERTZEL_COUNT];
+float d1High[GOERTZEL_COUNT];
+float d2High[GOERTZEL_COUNT];
+float magHigh[GOERTZEL_COUNT];
+
+float d0Low[GOERTZEL_COUNT];
+float d1Low[GOERTZEL_COUNT];
+float d2Low[GOERTZEL_COUNT];
+float magLow[GOERTZEL_COUNT];
+
+bool enabled[GOERTZEL_COUNT];
+
 int offset;
 int max;
 
-float samples[AUDIO_BUFFER_SIZE];
+int samples[AUDIO_BUFFER_SIZE];
 int samplesIn;
 int samplesOut;
 
-// DEBUG
-float maxMagnitudeHigh;
-float maxMagnitudeLow;
+char* syncbits = SYNC_BITS;
 
-void signalPrint() {
-	Serial.print("High: ");
-	Serial.println(maxMagnitudeHigh);
-	Serial.print("Low:  ");
-	Serial.println(maxMagnitudeLow);
-	maxMagnitudeHigh = 0;
-	maxMagnitudeLow = 0;
-}
+// DEBUG
+bool ledOn = false;
+bool ledOn2 = false;
 
 ////////////////////////////////////////////////////////////////////////////////
 // SIGNAL
@@ -36,24 +40,72 @@ void signalPrint() {
 void signalInit() {
 	audioInit();
 	goertzelInit();
-
-	// DEBUG
-	pinMode(11, OUTPUT);
-	maxMagnitudeHigh = 0;
-	maxMagnitudeLow = 0;
 }
 
 void signalSynchronize() {
+	int positions[GOERTZEL_COUNT];
+	float sumMagsHigh[GOERTZEL_COUNT];
+	float sumMagsLow[GOERTZEL_COUNT];
 	int i;
-	for(i = 0; i < SAMPLES_PER_BIT * 2; i++) {
-		struct goertzel *g = goertzels + i;
-		g->enabled = true;
+	for (i = 0; i < GOERTZEL_COUNT; i++) {
+		enabled[i] = true;
+		positions[i] = 0;
+		sumMagsHigh[i] = 0;
+		sumMagsLow[i] = 0;
 	}
 	audioBegin();
-	for(int i = 0; i < SAMPLES_PER_BIT * 100; i++) {
+	int maxIndex = -1;
+
+	digitalWrite(13, HIGH);
+
+	for(i = 0; i < SAMPLES_PER_BIT;) {
+		goertzelSample();
+		if(offset % GOERTZEL_DISTANCE == 0) {
+			int index = offset / GOERTZEL_DISTANCE;
+			float high = magHigh[index];
+			float low = magLow[index];
+			float diff = high - low;
+			char next = syncbits[positions[index]];
+			if(diff > 0 && next == '1') {
+				positions[index]++;
+				sumMagsHigh[index] += high;
+			} else if(next == '0') {
+				positions[index]++;
+				sumMagsLow[index] += low;
+			} else {
+				positions[index] = 0;
+				sumMagsHigh[index] = 0;
+				sumMagsLow[index] = 0;
+			}
+			if(positions[index] == SYNC_BITS_C) {
+				if(maxIndex == -1 || sumMagsHigh[index] + sumMagsLow[index] > sumMagsHigh[maxIndex] + sumMagsLow[maxIndex]) {
+					maxIndex = index;
+				}
+			}
+		}
+		if(maxIndex != -1) {
+			digitalWrite(12, HIGH);
+			i++;
+		}
+	}
+	max = maxIndex;
+	for (i = 0; i < GOERTZEL_COUNT; i++) {
+		if(i != max) {
+			enabled[i] = false;
+		}
+	}
+
+	digitalWrite(12, LOW);
+	digitalWrite(13, LOW);
+}
+
+char signalReadBit() {
+	int i;
+	for(i = 0; i < SAMPLES_PER_BIT; i++) {
 		goertzelSample();
 	}
-	signalPrint();
+	float diff = magHigh[max] - magLow[max];
+	return diff > 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -62,82 +114,66 @@ void signalSynchronize() {
 
 void goertzelInit() {
 	int i;
-	for(i = 0; i < SAMPLES_PER_BIT * 2; i++) {
-		struct goertzel gHigh;
-		gHigh.d0 = 0;
-		gHigh.d1 = 0;
-		gHigh.d2 = 0;
-		gHigh.mag = 0;
-		gHigh.enabled = true;
-		goertzels[i] = gHigh;
+	for (i = 0; i < GOERTZEL_COUNT; i++) {
+		d0High[i] = 0;
+		d1High[i] = 0;
+		d2High[i] = 0;
 
-		struct goertzel gLow;
-		gLow.d0 = 0;
-		gLow.d1 = 0;
-		gLow.d2 = 0;
-		gLow.mag = 0;
-		gLow.enabled = true;
-		goertzels[i] = gLow;
+		d0Low[i] = 0;
+		d1Low[i] = 0;
+		d2Low[i] = 0;
+
+		enabled[i] = true;
 	}
 	offset = 0;
 }
 
 void goertzelBlock(int i) {
-	struct goertzel *gHigh = goertzels + i * 2;
 	float realHigh;
 	float imaHigh;
 
-	struct goertzel *gLow = goertzels + i * 2 + 1;
 	float realLow;
 	float imaLow;
 
-	gHigh->d0 = GOERTZEL_A_HIGH * gHigh->d1 - gHigh->d2;
-	gHigh->d2 = gHigh->d1;
-	gHigh->d1 = gHigh->d0;
-	realHigh = gHigh->d1 - gHigh->d2 * GOERTZEL_COSINUS_HIGH;
-	imaHigh = gHigh->d2 * GOERTZEL_SINUS_HIGH;
-	gHigh->mag = realHigh * realHigh + imaHigh * imaHigh;
-	if(gHigh->mag > maxMagnitudeHigh) {
-		maxMagnitudeHigh = gHigh->mag;
-	}
-	gHigh->d0 = 0;
-	gHigh->d1 = 0;
-	gHigh->d2 = 0;
+	d0High[i] = GOERTZEL_A_HIGH * d1High[i] - d2High[i];
+	d2High[i] = d1High[i];
+	d1High[i] = d0High[i];
+	realHigh = d1High[i] - d2High[i] * GOERTZEL_COSINUS_HIGH;
+	imaHigh = d2High[i] * GOERTZEL_SINUS_HIGH;
+	magHigh[i] = realHigh * realHigh + imaHigh * imaHigh;
+	d0High[i] = 0;
+	d1High[i] = 0;
+	d2High[i] = 0;
 
-	gLow->d0 = GOERTZEL_A_LOW * gLow->d1 - gLow->d2;
-	gLow->d2 = gLow->d1;
-	gLow->d1 = gLow->d0;
-	realLow = gLow->d1 - gLow->d2 * GOERTZEL_COSINUS_LOW;
-	imaLow = gLow->d2 * GOERTZEL_SINUS_LOW;
-	gLow->mag = realLow * realLow + imaLow * imaLow;
-	if(gLow->mag > maxMagnitudeLow) {
-		maxMagnitudeLow = gLow->mag;
-	}
-	gLow->d0 = 0;
-	gLow->d1 = 0;
-	gLow->d2 = 0;
+	d0Low[i] = GOERTZEL_A_LOW * d1Low[i] - d2Low[i];
+	d2Low[i] = d1Low[i];
+	d1Low[i] = d0Low[i];
+	realLow = d1Low[i] - d2Low[i] * GOERTZEL_COSINUS_LOW;
+	imaLow = d2Low[i] * GOERTZEL_SINUS_LOW;
+	magLow[i] = realLow * realLow + imaLow * imaLow;
+	d0Low[i] = 0;
+	d1Low[i] = 0;
+	d2Low[i] = 0;
 }
 
 void goertzelSample() {
-	float sample = audioRead();
+	int iSample = audioRead();
+	float sample = (iSample - AUDIO_MIDDLE) / (float) AUDIO_MIDDLE;
 	offset++;
-	if(offset == SAMPLES_PER_BIT) {
+	if (offset == SAMPLES_PER_BIT) {
 		offset = 0;
 	}
 	int i;
-	for(i = 0; i < SAMPLES_PER_BIT * 2; i++) {
-		struct goertzel *gHigh = goertzels + i * 2;
-		if(gHigh->enabled) {
-			struct goertzel *gLow = goertzels + i * 2 + 1;
+	for (i = 0; i < GOERTZEL_COUNT / 2; i++) {
+		if (enabled[i]) {
+			d0High[i] = GOERTZEL_A_HIGH * d1High[i] - d2High[i] + sample;
+			d2High[i] = d1High[i];
+			d1High[i] = d0High[i];
+			d0Low[i] = GOERTZEL_A_LOW * d1Low[i] - d2Low[i] + sample;
+			d2Low[i] = d1Low[i];
+			d1Low[i] = d0Low[i];
 
-			gHigh->d0 = GOERTZEL_A_HIGH * gHigh->d1 - gHigh->d2 + sample;
-			gHigh->d2 = gHigh->d1;
-			gHigh->d1 = gHigh->d0;
-			gLow->d0 = GOERTZEL_A_LOW * gLow->d1 - gLow->d2 + sample;
-			gLow->d2 = gLow->d1;
-			gLow->d1 = gLow->d0;
-
-			if(i == offset) {
+			if (i * GOERTZEL_DISTANCE == offset) {
 				goertzelBlock(i);
 			}
 		}
@@ -163,15 +199,21 @@ void audioBegin() {
 void audioCallback() {
 	// Read from the ADC and store the sample data
 	int sample = analogRead(AUDIO_INPUT_PIN);
-	float fSample = (sample - AUDIO_MIDDLE) / (float) AUDIO_MIDDLE;
-	samples[samplesIn] = fSample;
+	samples[samplesIn] = sample;
 	samplesIn++;
-	if(samplesIn == AUDIO_BUFFER_SIZE) {
+	if (samplesIn == AUDIO_BUFFER_SIZE) {
 		samplesIn = 0;
 	}
-	if(samplesIn == samplesOut) {
+	if (samplesIn == samplesOut) {
+		if(ledOn) {
+			digitalWrite(11, LOW);
+			ledOn = false;
+		} else {
+			digitalWrite(11, HIGH);
+			ledOn = true;
+		}
 		samplesOut++;
-		if(samplesOut == AUDIO_BUFFER_SIZE) {
+		if (samplesOut == AUDIO_BUFFER_SIZE) {
 			samplesOut = 0;
 		}
 	}
@@ -181,11 +223,11 @@ bool audioAvailable() {
 	return samplesOut != samplesIn;
 }
 
-float audioRead() {
-	//while(!audioAvailable()) { delay(1); }
-	float sample = samples[samplesOut];
+int audioRead() {
+	while(!audioAvailable()) { delay(1); }
+	int sample = samples[samplesOut];
 	samplesOut++;
-	if(samplesOut == AUDIO_BUFFER_SIZE) {
+	if (samplesOut == AUDIO_BUFFER_SIZE) {
 		samplesOut = 0;
 	}
 	return sample;
