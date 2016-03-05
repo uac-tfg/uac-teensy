@@ -5,13 +5,8 @@ void setup() {
 	pinMode(POWER_LED, OUTPUT);
 
 	signalInit();
-	signalSynchronize();
 }
 
 void loop() {
-	signalPrint();
-	digitalWrite(POWER_LED, HIGH);
-	delay(500);
-	digitalWrite(POWER_LED, LOW);
-	delay(500);
+	signalSynchronize();
 }

@@ -11,6 +11,11 @@ IntervalTimer samplingTimer;
 
 struct goertzel goertzels[SAMPLES_PER_BIT * 2];
 int offset;
+int max;
+
+float samples[AUDIO_BUFFER_SIZE];
+int samplesIn;
+int samplesOut;
 
 // DEBUG
 float maxMagnitudeHigh;
@@ -33,13 +38,22 @@ void signalInit() {
 	goertzelInit();
 
 	// DEBUG
-	pinMode(2, OUTPUT);
+	pinMode(11, OUTPUT);
 	maxMagnitudeHigh = 0;
 	maxMagnitudeLow = 0;
 }
 
 void signalSynchronize() {
+	int i;
+	for(i = 0; i < SAMPLES_PER_BIT * 2; i++) {
+		struct goertzel *g = goertzels + i;
+		g->enabled = true;
+	}
 	audioBegin();
+	for(int i = 0; i < SAMPLES_PER_BIT * 100; i++) {
+		goertzelSample();
+	}
+	signalPrint();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -104,7 +118,8 @@ void goertzelBlock(int i) {
 	gLow->d2 = 0;
 }
 
-void goertzelSample(float sample) {
+void goertzelSample() {
+	float sample = audioRead();
 	offset++;
 	if(offset == SAMPLES_PER_BIT) {
 		offset = 0;
@@ -139,6 +154,8 @@ void audioInit() {
 }
 
 void audioBegin() {
+	samplesIn = 0;
+	samplesOut = 0;
 	// start callback at necessary rate
 	samplingTimer.begin(audioCallback, 1000000 / SAMPLE_RATE_HZ);
 }
@@ -147,5 +164,29 @@ void audioCallback() {
 	// Read from the ADC and store the sample data
 	int sample = analogRead(AUDIO_INPUT_PIN);
 	float fSample = (sample - AUDIO_MIDDLE) / (float) AUDIO_MIDDLE;
-	goertzelSample(fSample);
+	samples[samplesIn] = fSample;
+	samplesIn++;
+	if(samplesIn == AUDIO_BUFFER_SIZE) {
+		samplesIn = 0;
+	}
+	if(samplesIn == samplesOut) {
+		samplesOut++;
+		if(samplesOut == AUDIO_BUFFER_SIZE) {
+			samplesOut = 0;
+		}
+	}
+}
+
+bool audioAvailable() {
+	return samplesOut != samplesIn;
+}
+
+float audioRead() {
+	//while(!audioAvailable()) { delay(1); }
+	float sample = samples[samplesOut];
+	samplesOut++;
+	if(samplesOut == AUDIO_BUFFER_SIZE) {
+		samplesOut = 0;
+	}
+	return sample;
 }

@@ -30,6 +30,7 @@
 #define AUDIO_READ_RESOLUTION 12 // Bits of resolution for the ADC.
 #define AUDIO_READ_AVERAGING 1  // Number of samples to average with each ADC reading.
 #define AUDIO_MIDDLE 1522
+#define AUDIO_BUFFER_SIZE 128
 
 // DEBUG
 void signalPrint();
@@ -49,12 +50,14 @@ struct goertzel {
 
 void goertzelInit();
 void goertzelBlock(int i);
-void goertzelSample(float sample);
+void goertzelSample();
 
 // Audio
 void audioInit();
 void audioBegin();
 void audioCallback();
+bool audioAvailable();
+float audioRead();
 
 
 #endif /* SIGNALINPUT_H_ */
