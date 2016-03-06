@@ -7,13 +7,21 @@ void setup() {
 	pinMode(11, OUTPUT);
 
 	signalInit();
+	audioBegin();
 }
 
 void loop() {
-	delay(1000 * 5);
-	Serial.println("Start");
-	signalSynchronize();
-	Serial.println("Signal!");
+	int i;
+	digitalWrite(12, HIGH);
+	for(i = 0; i < SAMPLES_PER_BIT * 80; i++) {
+		goertzelSample();
+	}
+	digitalWrite(12, LOW);
+	signalPrint();
+
+	//Serial.println("Start");
+	//signalSynchronize();
+	//Serial.println("Signal!");
 	/*int i;
 	for(i = 0; i < 32; i++) {
 		char bit = signalReadBit();

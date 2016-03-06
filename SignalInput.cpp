@@ -34,6 +34,18 @@ char* syncbits = SYNC_BITS;
 bool ledOn = false;
 bool ledOn2 = false;
 
+float maxMagHigh = 0;
+float maxMagLow = 0;
+
+void signalPrint() {
+	Serial.print("High: ");
+	Serial.println(maxMagHigh);
+	Serial.print("Low:  ");
+	Serial.println(maxMagLow);
+	maxMagHigh = 0;
+	maxMagLow = 0;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // SIGNAL
 ////////////////////////////////////////////////////////////////////////////////
@@ -141,6 +153,9 @@ void goertzelBlock(int i) {
 	realHigh = d1High[i] - d2High[i] * GOERTZEL_COSINUS_HIGH;
 	imaHigh = d2High[i] * GOERTZEL_SINUS_HIGH;
 	magHigh[i] = realHigh * realHigh + imaHigh * imaHigh;
+	if(magHigh[i] > maxMagHigh) {
+		maxMagHigh = magHigh[i];
+	}
 	d0High[i] = 0;
 	d1High[i] = 0;
 	d2High[i] = 0;
@@ -151,6 +166,9 @@ void goertzelBlock(int i) {
 	realLow = d1Low[i] - d2Low[i] * GOERTZEL_COSINUS_LOW;
 	imaLow = d2Low[i] * GOERTZEL_SINUS_LOW;
 	magLow[i] = realLow * realLow + imaLow * imaLow;
+	if(magLow[i] > maxMagLow) {
+		maxMagLow = magLow[i];
+	}
 	d0Low[i] = 0;
 	d1Low[i] = 0;
 	d2Low[i] = 0;
@@ -224,7 +242,7 @@ bool audioAvailable() {
 }
 
 int audioRead() {
-	while(!audioAvailable()) { delay(1); }
+	while(!audioAvailable()) { Serial.print(""); }
 	int sample = samples[samplesOut];
 	samplesOut++;
 	if (samplesOut == AUDIO_BUFFER_SIZE) {

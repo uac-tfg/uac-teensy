@@ -36,6 +36,9 @@
 #define AUDIO_MIDDLE 381
 #define AUDIO_BUFFER_SIZE 10
 
+// DEBUG
+void signalPrint();
+
 // Signal
 void signalInit();
 void signalSynchronize();
