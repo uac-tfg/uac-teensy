@@ -175,8 +175,7 @@ void goertzelBlock(int i) {
 }
 
 void goertzelSample() {
-	int iSample = audioRead();
-	float sample = (iSample - AUDIO_MIDDLE) / (float) AUDIO_MIDDLE;
+	int sample = audioRead() - AUDIO_MIDDLE;
 	offset++;
 	if (offset == SAMPLES_PER_BIT) {
 		offset = 0;
