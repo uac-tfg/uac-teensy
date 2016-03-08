@@ -55,69 +55,74 @@ void signalInit() {
 }
 
 void signalSynchronize() {
-	int positions[GOERTZEL_COUNT];
-	float sumMagsHigh[GOERTZEL_COUNT];
-	float sumMagsLow[GOERTZEL_COUNT];
-	int i;
-	for (i = 0; i < GOERTZEL_COUNT; i++) {
-		enabled[i] = true;
-		positions[i] = 0;
-		sumMagsHigh[i] = 0;
-		sumMagsLow[i] = 0;
-	}
 	audioBegin();
+	int pos[GOERTZEL_COUNT];
+	float sumHigh[GOERTZEL_COUNT];
+	float sumLow[GOERTZEL_COUNT];
+	int i;
+	for(i = 0; i < GOERTZEL_COUNT; i++) {
+		pos[i] = 0;
+		sumHigh[i] = 0;
+		sumLow[i] = 0;
+		enabled[i] = true;
+	}
 	int maxIndex = -1;
-
-	digitalWrite(13, HIGH);
-
-	for(i = 0; i < SAMPLES_PER_BIT;) {
+	while (true) {
 		goertzelSample();
 		if(offset % GOERTZEL_DISTANCE == 0) {
 			int index = offset / GOERTZEL_DISTANCE;
+			char next = SYNC_BITS[pos[index]];
 			float high = magHigh[index];
 			float low = magLow[index];
 			float diff = high - low;
-			char next = syncbits[positions[index]];
-			if(diff > 0 && next == '1') {
-				positions[index]++;
-				sumMagsHigh[index] += high;
-			} else if(next == '0') {
-				positions[index]++;
-				sumMagsLow[index] += low;
-			} else {
-				positions[index] = 0;
-				sumMagsHigh[index] = 0;
-				sumMagsLow[index] = 0;
+			if (index == 0 && diff > 0) {
+				digitalWrite(13, HIGH);
+			} else if(index == 0) {
+				digitalWrite(13, LOW);
 			}
-			if(positions[index] == SYNC_BITS_C) {
-				if(maxIndex == -1 || sumMagsHigh[index] + sumMagsLow[index] > sumMagsHigh[maxIndex] + sumMagsLow[maxIndex]) {
+			if (diff > 0 && next == '1') {
+				pos[index] = pos[index] + 1;
+				sumHigh[index] = sumHigh[index] + high;
+			} else if(next == '0') {
+				pos[index] = pos[index] + 1;
+				sumLow[index] = sumLow[index] + low;
+			} else {
+				pos[index] = 0;
+				sumHigh[index] = 0;
+				sumLow[index] = 0;
+			}
+			if (pos[index] == SYNC_BITS_C) {
+				if(maxIndex == -1 || (sumHigh[index] + sumLow[index] > sumHigh[maxIndex] + sumLow[maxIndex])) {
 					maxIndex = index;
 				}
 			}
-		}
-		if(maxIndex != -1) {
-			digitalWrite(12, HIGH);
-			i++;
+			if(maxIndex != -1) {
+				i++;
+				if(i == SAMPLES_PER_BIT) {
+					break;
+				}
+			}
 		}
 	}
 	max = maxIndex;
-	for (i = 0; i < GOERTZEL_COUNT; i++) {
+	for(i = 0; i < GOERTZEL_COUNT; i++) {
 		if(i != max) {
 			enabled[i] = false;
 		}
 	}
-
-	digitalWrite(12, LOW);
-	digitalWrite(13, LOW);
 }
 
 char signalReadBit() {
 	int i;
-	for(i = 0; i < SAMPLES_PER_BIT; i++) {
+	for (i = 0; i < SAMPLES_PER_BIT; i++) {
 		goertzelSample();
 	}
 	float diff = magHigh[max] - magLow[max];
-	return diff > 0;
+	if (diff > 0) {
+		return '1';
+	} else {
+		return '0';
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -153,7 +158,7 @@ void goertzelBlock(int i) {
 	realHigh = d1High[i] - d2High[i] * GOERTZEL_COSINUS_HIGH;
 	imaHigh = d2High[i] * GOERTZEL_SINUS_HIGH;
 	magHigh[i] = realHigh * realHigh + imaHigh * imaHigh;
-	if(magHigh[i] > maxMagHigh) {
+	if (magHigh[i] > maxMagHigh) {
 		maxMagHigh = magHigh[i];
 	}
 	d0High[i] = 0;
@@ -166,7 +171,7 @@ void goertzelBlock(int i) {
 	realLow = d1Low[i] - d2Low[i] * GOERTZEL_COSINUS_LOW;
 	imaLow = d2Low[i] * GOERTZEL_SINUS_LOW;
 	magLow[i] = realLow * realLow + imaLow * imaLow;
-	if(magLow[i] > maxMagLow) {
+	if (magLow[i] > maxMagLow) {
 		maxMagLow = magLow[i];
 	}
 	d0Low[i] = 0;
@@ -181,7 +186,7 @@ void goertzelSample() {
 		offset = 0;
 	}
 	int i;
-	for (i = 0; i < GOERTZEL_COUNT / 2; i++) {
+	for (i = 0; i < GOERTZEL_COUNT; i++) {
 		if (enabled[i]) {
 			d0High[i] = GOERTZEL_A_HIGH * d1High[i] - d2High[i] + sample;
 			d2High[i] = d1High[i];
@@ -213,6 +218,10 @@ void audioBegin() {
 	samplingTimer.begin(audioCallback, 1000000 / SAMPLE_RATE_HZ);
 }
 
+void audioEnd() {
+	samplingTimer.end();
+}
+
 void audioCallback() {
 	// Read from the ADC and store the sample data
 	int sample = analogRead(AUDIO_INPUT_PIN);
@@ -222,7 +231,7 @@ void audioCallback() {
 		samplesIn = 0;
 	}
 	if (samplesIn == samplesOut) {
-		if(ledOn) {
+		if (ledOn) {
 			digitalWrite(11, LOW);
 			ledOn = false;
 		} else {
@@ -241,7 +250,9 @@ bool audioAvailable() {
 }
 
 int audioRead() {
-	while(!audioAvailable()) { Serial.print(""); }
+	while (!audioAvailable()) {
+		Serial.print("");
+	}
 	int sample = samples[samplesOut];
 	samplesOut++;
 	if (samplesOut == AUDIO_BUFFER_SIZE) {
