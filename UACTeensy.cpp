@@ -7,9 +7,6 @@ void setup() {
 	pinMode(11, OUTPUT);
 
 	signalInit();
-	//audioBegin();
-
-	delay(1000 * 5);
 }
 
 void loop() {
@@ -26,16 +23,26 @@ void loop() {
 
 	signalSynchronize();
 	int i;
-	for(i = 0; i < 32; i++) {
+	int bitsc = 8 * 1;
+	char bits[bitsc];
+	for(i = 0; i < bitsc; i++) {
 		char bit = signalReadBit();
-		if(bit == '1') {
-			Serial.print('1');
-		} else {
-			Serial.print('0');
-		}
+		bits[i] = bit;
 	}
-	Serial.println();
 	audioEnd();
+
+	for(i = 0; i < bitsc; i++) {
+		digitalWrite(13, HIGH);
+		if(bits[i] == '1') {
+			digitalWrite(12, HIGH);
+		} else {
+			digitalWrite(12, LOW);
+		}
+		delay(100);
+		digitalWrite(13, LOW);
+		delay(900);
+	}
+	digitalWrite(12, LOW);
 
 	/*Serial.println("Start");
 	int i = 0;
