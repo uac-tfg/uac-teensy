@@ -9,6 +9,7 @@
 #include "Arduino.h"
 
 #include "SignalInput.h"
+#include "LiquidCrystal_I2C.h"
 
 #define POWER_LED 13
 

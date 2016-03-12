@@ -46,6 +46,14 @@ void signalPrint() {
 	maxMagLow = 0;
 }
 
+float getMaxMagHigh() {
+	return maxMagHigh;
+}
+
+float getMaxMagLow() {
+	return maxMagLow;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // SIGNAL
 ////////////////////////////////////////////////////////////////////////////////
@@ -123,6 +131,19 @@ char signalReadBit() {
 	} else {
 		return '0';
 	}
+}
+
+char signalReadByte() {
+	int i;
+	char byte = 0;
+	char bit;
+	for(i = 0; i < 8; i++) {
+		bit = signalReadBit();
+		if(bit == '1') {
+			byte |= (1 << (7 - i));
+		}
+	}
+	return byte;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

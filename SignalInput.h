@@ -56,11 +56,14 @@
 
 // DEBUG
 void signalPrint();
+float getMaxMagHigh();
+float getMaxMagLow();
 
 // Signal
 void signalInit();
 void signalSynchronize();
 char signalReadBit();
+char signalReadByte();
 
 // Goertzel
 void goertzelInit();

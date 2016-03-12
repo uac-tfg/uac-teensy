@@ -1,5 +1,7 @@
 #include "UACTeensy.h"
 
+LiquidCrystal_I2C lcd(0x27, 20, 4);
+
 void setup() {
 	Serial.begin(9600);
 	pinMode(POWER_LED, OUTPUT);
@@ -7,31 +9,72 @@ void setup() {
 	pinMode(11, OUTPUT);
 
 	signalInit();
+
+	lcd.init();
+	lcd.backlight();
 }
 
 void loop() {
-	/*
-	int i;
+	/*int i;
 	digitalWrite(13, LOW);
 	digitalWrite(12, HIGH);
-	for(i = 0; i < SAMPLES_PER_BIT * 5; i++) {
+	audioBegin();
+	for(i = 0; i < SAMPLES_PER_BIT * 70; i++) {
 		goertzelSample();
 	}
+	audioEnd();
 	digitalWrite(12, LOW);
 	digitalWrite(13, HIGH);
 	signalPrint();*/
+	//lcd.setCursor(0, 0);
+	//lcd.print(getMaxMagHigh());
+	//lcd.setCursor(0, 1);
+	//lcd.print(getMaxMagLow());*/
 
 	signalSynchronize();
+
+	/*char count = signalReadByte();
+	Serial.println(count);
+	char i;
+	char row = 0;
+	char column = 0;
+	lcd.setCursor(column, row);
+	for(i = 0; i < count; i++) {
+		char c = signalReadByte();
+		if(c == '\n' || column == 20) {
+			row++;
+			column = 0;
+			if(row == 4) {
+				break;
+			}
+			lcd.setCursor(column, row);
+		}
+		lcd.print(c);
+		column++;
+	}
+	for(i = column; i < 20; i++) {
+		lcd.print(" ");
+	}
+	row++;
+	for(i = row; i < 4; i++) {
+		lcd.setCursor(0, i);
+		lcd.print("                    ");
+	}*/
+
 	int i;
-	int bitsc = 8 * 1;
+	int bitsc = 8 * 2;
+	lcd.setCursor(2, 1);
 	char bits[bitsc];
 	for(i = 0; i < bitsc; i++) {
 		char bit = signalReadBit();
 		bits[i] = bit;
+		Serial.print(bits[i]);
+		lcd.print(bits[i]);
 	}
 	audioEnd();
+	Serial.println();
 
-	for(i = 0; i < bitsc; i++) {
+	/*for(i = 0; i < bitsc; i++) {
 		digitalWrite(13, HIGH);
 		if(bits[i] == '1') {
 			digitalWrite(12, HIGH);
@@ -42,7 +85,7 @@ void loop() {
 		digitalWrite(13, LOW);
 		delay(900);
 	}
-	digitalWrite(12, LOW);
+	digitalWrite(12, LOW);*/
 
 	/*Serial.println("Start");
 	int i = 0;
