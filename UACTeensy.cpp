@@ -33,7 +33,7 @@ void loop() {
 
 	signalSynchronize();
 
-	/*char count = signalReadByte();
+	char count = signalReadByte();
 	Serial.println(count);
 	char i;
 	char row = 0;
@@ -52,6 +52,7 @@ void loop() {
 		lcd.print(c);
 		column++;
 	}
+	audioEnd();
 	for(i = column; i < 20; i++) {
 		lcd.print(" ");
 	}
@@ -59,9 +60,9 @@ void loop() {
 	for(i = row; i < 4; i++) {
 		lcd.setCursor(0, i);
 		lcd.print("                    ");
-	}*/
+	}
 
-	int i;
+	/*int i;
 	int bitsc = 8 * 2;
 	lcd.setCursor(2, 1);
 	char bits[bitsc];
@@ -71,7 +72,7 @@ void loop() {
 		Serial.print(bits[i]);
 		lcd.print(bits[i]);
 	}
-	audioEnd();
+	audioEnd();*/
 	Serial.println();
 
 	/*for(i = 0; i < bitsc; i++) {
